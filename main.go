@@ -19,7 +19,7 @@ func main() {
 
 	app := controllers.NewApplication(
 		database.ProductData(database.Client, "Products"),
-		database.UserData("database.Client", "Users"),
+		database.UserData(database.Client, "Users"),
 	)
 
 	router := gin.New()
