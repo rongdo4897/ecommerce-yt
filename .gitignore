@@ -19,6 +19,9 @@ _obj
 _test
 _testmain.go
 
+# Ignore the go.sum file
+go.sum
+
 /VERSION.cache
 /bin/
 /build.out
