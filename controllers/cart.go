@@ -56,7 +56,7 @@ func (app *Application) AddToCart() gin.HandlerFunc {
 		err = database.AddProductToCart(ctx, app.prodCollection, app.userCollection, productID, userQueryID)
 		if err != nil {
 			/*
-							IndentedJSON:
+				IndentedJSON:
 
 				Là một phương thức của đối tượng context (thường là c) trong Gin.
 				Được sử dụng để trả về phản hồi JSON với định dạng đẹp (có thụt lề) thay vì JSON một dòng.
@@ -64,6 +64,7 @@ func (app *Application) AddToCart() gin.HandlerFunc {
 			*/
 			c.IndentedJSON(http.StatusInternalServerError, err)
 		}
+		c.IndentedJSON(200, "Successfully added to the cart")
 	}
 }
 
