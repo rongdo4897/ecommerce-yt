@@ -42,7 +42,10 @@ func main() {
 }
 */
 
+var Client *mongo.Client = DBSet()
+
 func DBSet() *mongo.Client {
+	// Tạo 1 client
 	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
 
 	if err != nil {
@@ -54,11 +57,13 @@ func DBSet() *mongo.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Tạo kết nối
 	err = client.Connect(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	// Kiểm tra kết nối tới mongo
 	err = client.Ping(context.TODO(), nil)
 	if err != nil {
 		log.Fatal("failed to connect to mongodb: ", err)
@@ -71,9 +76,12 @@ func DBSet() *mongo.Client {
 }
 
 func UserData(client *mongo.Client, collectionName string) *mongo.Collection {
-
+	// truy cập một bảng (collection) cụ thể trong một database cụ thể.
+	var collection *mongo.Collection = client.Database("Ecommerce").Collection(collectionName)
+	return collection
 }
 
 func ProductData(client *mongo.Client, collectionName string) *mongo.Collection {
-
+	var productCollection *mongo.Collection = client.Database("Ecommerce").Collection(collectionName)
+	return productCollection
 }
