@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -9,10 +10,96 @@ import (
 	"github.com/rongdo4897/ecommerce-yt/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func AddAddress() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user_id := c.Query("id")
+		if user_id == "" {
+			c.Header("Content-Type", "application/json")
+			c.JSON(http.StatusNotFound, gin.H{"error": "Invalid code"})
+			c.Abort()
+			return
+		}
 
+		address, err := primitive.ObjectIDFromHex(user_id)
+		if err != nil {
+			c.IndentedJSON(500, "Internal server error")
+		}
+
+		var addressModel models.Address
+		addressModel.Address_ID = primitive.NewObjectID()
+		if err = c.BindJSON(&addressModel); err != nil {
+			c.IndentedJSON(http.StatusNotAcceptable, err.Error())
+		}
+
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+
+		/*
+			$match: Đây là một giai đoạn để lọc các tài liệu theo một điều kiện nhất định, Trong trường hợp này, tài liệu sẽ được lọc theo trường "_id" bằng giá trị "address".
+			Điều này tạo một đối tượng match_filter kiểu bson.D (bson.Document) với một phần tử có key là "$match" và giá trị là một bson.D khác chứa điều kiện lọc.
+			Điều này tạo ra một điều kiện $match trong pipeline để lọc các tài liệu dựa trên giá trị "_id" bằng address.
+		*/
+		match_filter := bson.D{{Key: "$match", Value: bson.D{primitive.E{Key: "_id", Value: address}}}}
+		/*
+			$unwind: Giai đoạn này được sử dụng để chia các giá trị trong mảng thành các tài liệu độc lập.
+			Trong trường hợp này, có vẻ như "address" là một mảng, và $unwind sẽ "mở rộng" nó, tạo ra các bản ghi riêng lẻ cho mỗi phần tử trong mảng.
+			Trong đoạn mã này, nó mở rộng mảng có tên "address" thành các bản ghi độc lập. path là key chứa mảng mà bạn muốn mở rộng, và "$address" là đường dẫn của mảng đó trong tài liệu
+		*/
+		unwind := bson.D{{Key: "$unwind", Value: bson.D{primitive.E{Key: "path", Value: "$address"}}}}
+		/*
+			$group: Đây là giai đoạn nhóm, nơi bạn có thể thực hiện các phép toán nhóm như tổng, đếm, lấy giá trị lớn nhất, lấy giá trị nhỏ nhất, v.v.
+			Trong trường hợp này, tài liệu được nhóm dựa trên giá trị "_id" là "$address_id", và sau đó, cho mỗi nhóm, đếm số lượng bằng cách sử dụng $sum.
+		*/
+		group := bson.D{{Key: "$group", Value: bson.D{primitive.E{Key: "_id", Value: "$address_id"}, {Key: "count", Value: bson.D{primitive.E{Key: "$sum", Value: 1}}}}}}
+
+		/*
+		 UserCollection.Aggregate thực hiện toàn bộ pipeline trên collection UserCollection sử dụng các giai đoạn đã được xây dựng
+		 , và kết quả được trả về dưới dạng một con trỏ cursor pointCursor.
+		*/
+		pointCursor, err := UserCollection.Aggregate(ctx, mongo.Pipeline{match_filter, unwind, group})
+		if err != nil {
+			c.IndentedJSON(500, "Internal server error")
+		}
+
+		/*
+			addressInfo là một slice (mảng động) chứa các tài liệu kết quả của truy vấn MongoDB.
+			bson.M là một kiểu dữ liệu trong thư viện BSON của MongoDB, đại diện cho một tài liệu BSON dưới dạng map[string]interface{}.
+			Trong Go, bson.M thường được sử dụng khi không biết chính xác cấu trúc của tài liệu hoặc muốn làm việc với dữ liệu không cố định.
+		*/
+		var addressInfo []bson.M
+		/*
+			pointCursor là con trỏ cursor chứa kết quả từ truy vấn aggregation.
+			Phương thức All của cursor được sử dụng để lấy tất cả các tài liệu từ cursor và đổ vào slice addressInfo.
+			ctx là context được sử dụng trong truy vấn, và &addressInfo là địa chỉ của slice để lưu trữ kết quả.
+		*/
+		if err = pointCursor.All(ctx, &addressInfo); err != nil {
+			panic(err)
+		}
+
+		var size int32
+		for _, address_no := range addressInfo {
+			count := address_no["count"]
+			size = count.(int32)
+		}
+
+		if size < 2 {
+			filter := bson.D{primitive.E{Key: "_id", Value: address}}
+			update := bson.D{{Key: "$push", Value: bson.D{primitive.E{Key: "address", Value: addressModel}}}}
+			_, err := UserCollection.UpdateOne(ctx, filter, update)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			//TODO: Thiếu xử lý json success
+			// c.IndentedJSON(200, "Add address successfully")
+		} else {
+			c.IndentedJSON(400, "Not Allowed")
+		}
+		defer cancel()
+		ctx.Done()
+	}
 }
 
 func EditHomeAddress() gin.HandlerFunc {
