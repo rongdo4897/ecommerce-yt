@@ -46,11 +46,7 @@ var Client *mongo.Client = DBSet()
 
 func DBSet() *mongo.Client {
 	// Tạo 1 client
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
-
-	if err != nil {
-		log.Fatal(err)
-	}
+	clientOptions := options.Client().ApplyURI("mongodb://development:testpassword@localhost:27017")
 
 	// tạo một context với một thời gian chờ (timeout) 10 giây.
 	// Bất cứ hoạt động nào được thực hiện trong ngữ cảnh này sẽ bị hủy bỏ nếu nó không hoàn thành trong khoảng thời gian này.
@@ -58,7 +54,7 @@ func DBSet() *mongo.Client {
 	defer cancel()
 
 	// Tạo kết nối
-	err = client.Connect(ctx)
+	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		log.Fatal(err)
 	}

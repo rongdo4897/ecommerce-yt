@@ -11,6 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/rongdo4897/ecommerce-yt/database"
 	"github.com/rongdo4897/ecommerce-yt/models"
+	generate "github.com/rongdo4897/ecommerce-yt/tokens"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -42,7 +43,7 @@ func VerifyPassword(userPassword string, givenPassword string) (bool, string) {
 	return valid, msg
 }
 
-func Signup() gin.HandlerFunc {
+func SignUp() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
@@ -118,6 +119,8 @@ func Login() gin.HandlerFunc {
 		defer cancel()
 
 		var user models.User
+		var foundUser models.User
+
 		// c.BindJSON(&user) đọc dữ liệu JSON từ yêu cầu và ánh xạ nó vào biến user.
 		if err := c.BindJSON(&user); err != nil {
 			// trả về lỗi 400 cùng thông báo lỗi
@@ -144,13 +147,31 @@ func Login() gin.HandlerFunc {
 		token, refreshToken, _ := generate.TokenGenerator(*foundUser.Email, *foundUser.First_Name, *foundUser.Last_Name, foundUser.User_ID)
 		defer cancel()
 
-		generate.UpdateAllToken(token, refreshToken, foundUser.User_ID)
+		generate.UpdateAllTokens(token, refreshToken, foundUser.User_ID)
 		c.JSON(http.StatusFound, foundUser)
 	}
 }
 
 func ProductViewerAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
+		var products models.Product
+		defer cancel()
+		if err := c.BindJSON(&products); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 
+		products.Product_ID = primitive.NewObjectID()
+		_, anyerr := ProductCollection.InsertOne(ctx, products)
+		if anyerr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Not inserted"})
+			return
+		}
+		defer cancel()
+
+		c.JSON(http.StatusOK, "Successfully added")
+	}
 }
 
 func SearchProduct() gin.HandlerFunc {
